@@ -1,0 +1,48 @@
+#Create new secret in Azure Container App
+az containerapp secret set \
+  --name azureopenaiproxy \
+  --resource-group Uplyf \
+  --secrets proxy-api-key='your-very-strong-random-key'
+
+#Create new container App
+az containerapp create \
+  ... \
+  --env-vars AZURE_OPENAI_URL='https://uplyf-ai-foundry.openai.azure.com/openai/deployments/gpt-4-04-14-uplyf/chat/completions?api-version=2025-01-01-preview' AZURE_OPENAI_API_KEY='your-azure-api-key'
+
+
+
+
+#When Azure Container App Secret changes example: Azure OpenAI Key Changes , update the Azure Container App Secret and then map the container app to new secret and stop and start container app
+az containerapp update \
+  --name azureopenaiproxy --resource-group Uplyf \
+  --set-env-vars AZURE_OPENAI_API_KEY=secretref:AZURE_OPENAI_API_KEY \
+                 PROXY_API_KEY=secretref:PROXY_API_KEY
+
+#Once Azure Container App secret is updated then 
+#Update existing Azure Container App
+az containerapp update \
+  --name azureopenaiproxy \
+  --resource-group Uplyf \
+  --set-env-vars AZURE_OPENAI_URL='https://uplyf-ai-foundry.openai.azure.com/openai/deployments/gpt-4-04-14-uplyf/chat/completions?api-version=2025-01-01-preview' AZURE_OPENAI_API_KEY=secretref:uplyf-ai-foundry-key
+
+
+
+
+
+
+#update Azure Container App with new docker image when code changes
+az containerapp update \
+  --name azureopenaiproxy \
+  --resource-group Uplyf \
+  --image uplyf-g5ghdba7gkgxfdb0.azurecr.io/azureopenaiproxy:{replace_with_latest_tag}
+
+#You can verify after a minute or two:
+az containerapp show \
+  --name azureopenaiproxy \
+  --resource-group Uplyf \
+  --query properties.latestRevisionName
+#view live logs:
+
+az containerapp logs show \
+  --name azureopenaiproxy \
+  --resource-group Uplyf --follow

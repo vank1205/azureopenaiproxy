@@ -1,0 +1,37 @@
+# ───────────────────────── Dockerfile ─────────────────────────
+#  FastAPI + Uvicorn proxy for Azure OpenAI / GPT-4o mini
+#  • Python 3.11-slim (small, secure)
+#  • Removes any pre-installed websockets before installing deps
+#  • Uses --no-cache to keep layers tiny
+# -----------------------------------------------------------------
+
+# 1) Base image
+FROM python:3.11-slim
+
+# 2) Working directory inside the container
+WORKDIR /app
+
+# 3) System build deps (gcc only if your packages need it)
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends gcc build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# 4) Copy dependency list first (leverages Docker layer-caching)
+COPY requirements.txt .
+
+# 5) Install Python deps
+#    • Upgrade pip
+#    • Explicitly uninstall any pre-installed websockets
+#      (some base images include 4.x) before fresh install
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip uninstall -y websockets || true && \
+    pip install --no-cache-dir -r requirements.txt
+
+# 6) Copy application code
+COPY . .
+
+# 7) Expose port for Azure Container Apps (HTTP 8080)
+EXPOSE 8080
+
+# 8) Launch Uvicorn (warning log-level → hides headers / secrets)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "warning"]
