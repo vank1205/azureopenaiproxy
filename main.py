@@ -1,27 +1,11 @@
-"""
-main.py – OpenAI-compatible proxy (HTTP + WebSocket) for Azure OpenAI & GPT-4o mini
-╔══════════════════════════════════════════════════════════════════════════════════╗
-║  • HTTP POST /v1/chat/completions            – GPT-4.1 fine-tunes (round-robin) ║
-║  • HTTP POST /v1/audio/transcriptions        – Whisper-1 STT                     ║
-║  • HTTP POST /v1/audio/speech                – GPT-4o-mini TTS                   ║
-║  • WS  /v1/realtime/sessions                 – GPT-4o-mini realtime (WS)         ║
-╚══════════════════════════════════════════════════════════════════════════════════╝
-All routes require the **proxy API key**:
-  • HTTP  :  Authorization: Bearer <PROXY_API_KEY>
-  • WebSocket:  ?key=<PROXY_API_KEY>   (query)  ──or──  Authorization header
-Secrets are injected as Container-App secrets (PROXY_API_KEY, AZURE_OPENAI_API_KEY).
-"""
-
 import os, json, asyncio, httpx, websockets
 from itertools import cycle
 from fastapi import FastAPI, Request, Response, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 
-# ─── Secrets ───────────────────────────────────────────────────────────────
 AZURE_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 PROXY_KEY = os.getenv("PROXY_API_KEY")
 
-# ─── Endpoint map (Azure + Cognitive Services) ─────────────────────────────
 AZ_EP = {
     "gpt-4-04-14-uplyf-1":
         "https://uplyf-ai-foundry.openai.azure.com/openai/deployments/"
@@ -48,7 +32,6 @@ ROUND_ROBIN = cycle(UPLYF_PAIR)
 
 app = FastAPI()
 
-# ─── Helpers ───────────────────────────────────────────────────────────────
 def header_key(headers) -> str | None:
     auth = headers.get("authorization", "")
     return auth.split(" ", 1)[1] if auth.startswith("Bearer ") else None
@@ -69,7 +52,6 @@ def j(obj, code=200):
     return Response(json.dumps(obj, ensure_ascii=False), code,
                     media_type="application/json")
 
-# ─── HTTP: CHAT COMPLETIONS ────────────────────────────────────────────────
 @app.post("/v1/chat/completions")
 async def chat(req: Request):
     http_auth(req)
@@ -106,7 +88,6 @@ async def chat(req: Request):
 
     raise HTTPException(400, "Unsupported model on this endpoint")
 
-# ─── HTTP: Whisper STT ─────────────────────────────────────────────────────
 @app.post("/v1/audio/transcriptions")
 async def stt(req: Request):
     http_auth(req)
@@ -118,7 +99,6 @@ async def stt(req: Request):
     return Response(resp.content, resp.status_code,
                     media_type=resp.headers.get("content-type"))
 
-# ─── HTTP: GPT-4o mini TTS ────────────────────────────────────────────────
 @app.post("/v1/audio/speech")
 async def tts(req: Request):
     http_auth(req)
@@ -128,7 +108,6 @@ async def tts(req: Request):
     return Response(resp.content, resp.status_code,
                     media_type=resp.headers.get("content-type"))
 
-# ─── OPTIONS pre-flight for browsers ──────────────────────────────────────
 @app.options("/v1/realtime/sessions")
 async def realtime_options():
     return PlainTextResponse("ok", 200, headers={
@@ -137,7 +116,6 @@ async def realtime_options():
         "Access-Control-Allow-Methods": "OPTIONS, GET, POST"
     })
 
-# ─── WebSocket: GPT-4o mini realtime ──────────────────────────────────────
 @app.websocket("/v1/realtime/sessions")
 async def realtime_ws(client: WebSocket):
     # Accept proxy key via header **or** ?key= query parameter
